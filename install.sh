@@ -6,24 +6,24 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-DEST_DIR="/usr/src/xpad-fantech-1.0"
+DEST_DIR="/usr/src/xpad-zhixu-fix-1.0"
 echo "[*] Preparing DKMS source directory at $DEST_DIR..."
 mkdir -p "$DEST_DIR"
 cp Makefile dkms.conf xpad.c "$DEST_DIR/"
 
-echo "[*] Registering xpad-fantech with DKMS..."
-if dkms status -m xpad-fantech -v 1.0 | grep -q "added\|built\|installed"; then
+echo "[*] Registering xpad-zhixu-fix with DKMS..."
+if dkms status -m xpad-zhixu-fix -v 1.0 | grep -q "added\|built\|installed"; then
     echo "[*] Previous DKMS registration found. Removing old version..."
-    dkms remove -m xpad-fantech -v 1.0 --all || true
+    dkms remove -m xpad-zhixu-fix -v 1.0 --all || true
 fi
 
-dkms add -m xpad-fantech -v 1.0
+dkms add -m xpad-zhixu-fix -v 1.0
 
-echo "[*] Building xpad-fantech via DKMS..."
-dkms build -m xpad-fantech -v 1.0
+echo "[*] Building xpad-zhixu-fix via DKMS..."
+dkms build -m xpad-zhixu-fix -v 1.0
 
-echo "[*] Installing xpad-fantech via DKMS..."
-dkms install -m xpad-fantech -v 1.0 --force
+echo "[*] Installing xpad-zhixu-fix via DKMS..."
+dkms install -m xpad-zhixu-fix -v 1.0 --force
 
 echo "[*] Reloading xpad kernel module..."
 if lsmod | grep -q "^xpad "; then

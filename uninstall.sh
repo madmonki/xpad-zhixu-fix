@@ -6,11 +6,11 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-echo "[*] Removing xpad-fantech from DKMS..."
-dkms remove -m xpad-fantech -v 1.0 --all || true
+echo "[*] Removing xpad-zhixu-fix from DKMS..."
+dkms remove -m xpad-zhixu-fix -v 1.0 --all || true
 
-echo "[*] Removing /usr/src/xpad-fantech-1.0..."
-rm -rf /usr/src/xpad-fantech-1.0
+echo "[*] Removing /usr/src/xpad-zhixu-fix-1.0..."
+rm -rf /usr/src/xpad-zhixu-fix-1.0
 
 echo "[*] Reloading stock xpad kernel module..."
 if lsmod | grep -q "^xpad "; then

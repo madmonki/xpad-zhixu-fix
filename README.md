@@ -1,15 +1,15 @@
-# Fantech EOS Pro II S (ZhiXu 045e:028e) xpad Patch
+# xpad-zhixu-fix
 
-This repository contains a device-specific quirk patch for the Linux kernel `xpad` driver to resolve the continuous connect/disconnect loop on the **Fantech EOS Pro II S** (and other ZhiXu `045e:028e` clones) when connected via USB-C cable.
+A Linux kernel `xpad` driver patch and DKMS module to fix the continuous idle connect/disconnect loop on **ZhiXu-based Xbox 360 controller clones** (including the **Fantech EOS Pro II / II S**, Machenike G3V2, EasySMX X20, etc.) when connected via wired USB.
 
 ---
 
 ## The Problem
-When plugged in via USB-C without a running application (like Steam or Unreal Engine Editor) holding the gamepad's input device node open:
+When connected via USB without a running application (like Steam or Unreal Engine Editor) holding the gamepad's input device node open:
 1. `xpad` registers `/dev/input/eventX` but does not submit the interrupt IN URB or start polling until an application issues `open()` on the device.
-2. The controller's internal MCU firmware watchdog expects active polling on endpoint `0x81` (standard Windows behavior).
+2. The controller's internal ZhiXu MCU firmware watchdog expects active polling on endpoint `0x81` (standard Windows behavior).
 3. After ~1–2 seconds of zero polling, the controller's firmware assumes a connection loss and performs a soft reset, dropping off the USB bus and reconnecting indefinitely.
-4. When connected via the 2.4GHz USB wireless dongle, the dongle's transceiver handles the USB bus independently, avoiding this reset loop.
+4. When connected via a 2.4GHz USB wireless dongle, the dongle's transceiver handles the USB bus independently, avoiding this reset loop.
 
 ---
 
@@ -32,11 +32,11 @@ sudo ./install.sh
 
 Or manually:
 ```bash
-sudo mkdir -p /usr/src/xpad-fantech-1.0
-sudo cp Makefile dkms.conf xpad.c /usr/src/xpad-fantech-1.0/
-sudo dkms add -m xpad-fantech -v 1.0
-sudo dkms build -m xpad-fantech -v 1.0
-sudo dkms install -m xpad-fantech -v 1.0 --force
+sudo mkdir -p /usr/src/xpad-zhixu-fix-1.0
+sudo cp Makefile dkms.conf xpad.c /usr/src/xpad-zhixu-fix-1.0/
+sudo dkms add -m xpad-zhixu-fix -v 1.0
+sudo dkms build -m xpad-zhixu-fix -v 1.0
+sudo dkms install -m xpad-zhixu-fix -v 1.0 --force
 sudo modprobe -r xpad && sudo modprobe xpad
 ```
 
