@@ -1,0 +1,126 @@
+From 1234567890abcdef1234567890abcdef12345678 Mon Sep 17 00:00:00 2001
+From: madmonki <emozdemir@protonmail.com>
+Date: Thu, 8 Oct 2026 11:30:00 +0300
+Subject: [PATCH] Input: xpad - add persistent polling quirk for ZhiXu Xbox 360 clones
+
+Third-party Xbox 360 controller clones based on ZhiXu firmware
+(e.g., Fantech EOS Pro II / II S, Machenike G3V2) identify as
+045e:028e with manufacturer string "ZhiXu".
+
+When connected via wired USB-C, the controller internal MCU
+watchdog expects continuous polling on the interrupt IN endpoint.
+When no userspace application has the device open, xpad stops polling,
+causing the controller firmware watchdog to expire after ~1-2 seconds
+and reset the USB stack in an infinite connect/disconnect loop.
+
+Add an always_poll quirk that detects 045e:028e controllers with
+manufacturer "ZhiXu" (and an always_poll module parameter as fallback).
+For these devices, initiate polling at probe time and keep polling
+active across device open/close cycles, preventing the firmware watchdog
+from resetting the controller while plugged in. Genuine Microsoft
+controllers remain unaffected.
+
+Signed-off-by: madmonki <emozdemir@protonmail.com>
+---
+ drivers/input/joystick/xpad.c | 34 ++++++++++++++++++++++++++++++----
+ 1 file changed, 30 insertions(+), 4 deletions(-)
+
+--- a/drivers/input/joystick/xpad.c
++++ b/drivers/input/joystick/xpad.c
+@@ -88,6 +88,10 @@
+ static bool auto_poweroff = true;
+ module_param(auto_poweroff, bool, S_IWUSR | S_IRUGO);
+ MODULE_PARM_DESC(auto_poweroff, "Power off wireless controllers on suspend");
++
++static bool always_poll;
++module_param(always_poll, bool, 0444);
++MODULE_PARM_DESC(always_poll, "Always poll interrupt IN endpoint even when no application has opened the device");
+ 
+ static const struct xpad_device {
+ 	u16 idVendor;
+@@ -788,6 +792,7 @@
+ 	time64_t mode_btn_down_ts;
+ 	bool delay_init;		/* init packets should be delayed */
+ 	bool delayed_init_done;
++	bool always_poll;		/* keep polling active without open apps */
+ };
+ 
+ static int xpad_init_input(struct usb_xpad *xpad);
+@@ -1888,12 +1893,18 @@
+ {
+ 	struct usb_xpad *xpad = input_get_drvdata(dev);
+ 
++	if (xpad->always_poll)
++		return 0;
++
+ 	return xpad_start_input(xpad);
+ }
+ 
+ static void xpad_close(struct input_dev *dev)
+ {
+ 	struct usb_xpad *xpad = input_get_drvdata(dev);
++
++	if (xpad->always_poll)
++		return;
+ 
+ 	xpad_stop_input(xpad);
+ }
+@@ -2092,6 +2103,14 @@
+ 	xpad->name = xpad_device[i].name;
+ 	if (xpad_device[i].flags & FLAG_DELAY_INIT)
+ 		xpad->delay_init = true;
++
++	if (always_poll ||
++	    (le16_to_cpu(udev->descriptor.idVendor) == 0x045e &&
++	     le16_to_cpu(udev->descriptor.idProduct) == 0x028e &&
++	     udev->manufacturer && strstr(udev->manufacturer, "ZhiXu"))) {
++		xpad->always_poll = true;
++		dev_info(&intf->dev, "Enabling persistent polling quirk for ZhiXu / Fantech controller\n");
++	}
+ 
+ 	xpad->packet_type = PKT_XB;
+ 	INIT_WORK(&xpad->work, xpad_presence_work);
+@@ -2214,6 +2233,13 @@
+ 		error = xpad_init_input(xpad);
+ 		if (error)
+ 			goto err_deinit_output;
++
++		if (xpad->always_poll) {
++			error = xpad_start_input(xpad);
++			if (error)
++				goto err_deinit_output;
++			udev->quirks |= USB_QUIRK_RESET_RESUME;
++		}
+ 	}
+ 	return 0;
+ 
+@@ -2232,7 +2258,7 @@
+ {
+ 	struct usb_xpad *xpad = usb_get_intfdata(intf);
+ 
+-	if (xpad->xtype == XTYPE_XBOX360W)
++	if (xpad->xtype == XTYPE_XBOX360W || xpad->always_poll)
+ 		xpad360w_stop_input(xpad);
+ 
+ 	xpad_deinit_input(xpad);
+@@ -2278,7 +2304,7 @@
+ 	} else {
+ 		guard(mutex)(&input->mutex);
+ 
+-		if (input_device_enabled(input))
++		if (input_device_enabled(input) || xpad->always_poll)
+ 			xpad_stop_input(xpad);
+ 	}
+ 
+@@ -2298,7 +2324,7 @@
+ 
+ 	guard(mutex)(&input->mutex);
+ 
+-	if (input_device_enabled(input))
++	if (input_device_enabled(input) || xpad->always_poll)
+ 		return xpad_start_input(xpad);
+ 
+ 	if (xpad->xtype == XTYPE_XBOXONE) {
+
+--
+2.42.0
